@@ -1,0 +1,53 @@
+:root {
+  --bg: #000000;
+  --bg-soft: #050d10;
+  --cyan: #00e5ff;
+  --cyan-dim: #008b9a;
+  --cyan-glow: rgba(0, 229, 255, 0.45);
+  --text: #c8faff;
+  --text-dim: #4a7a82;
+  --border: rgba(0, 229, 255, 0.25);
+  --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SFMono-Regular',
+    'Consolas', 'Liberation Mono', monospace;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--cyan);
+  color: #000;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--cyan-dim);
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan);
+}
