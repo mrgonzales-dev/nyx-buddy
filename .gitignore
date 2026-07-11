@@ -3,3 +3,7 @@ dist
 *.log
 .DS_Store
 resources/models/*.gguf
+.devin/
+.devin
+AGENTS.md
+.playwright-mcp/
