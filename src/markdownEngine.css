@@ -53,15 +53,18 @@
 .markdown-body ol {
   margin: 0 0 6px;
   padding-left: 20px;
+  list-style-position: outside;
 }
 .markdown-body li {
   margin: 3px 0;
+  padding-left: 6px;
 }
 .markdown-body ul li::marker {
   color: var(--cyan);
 }
 .markdown-body ol li::marker {
   color: var(--cyan);
+  font-weight: bold;
 }
 
 /* ---- Blockquote ---- */

@@ -30,6 +30,7 @@ const COMPACT_THRESHOLD = config.compactThreshold;
 const COMPACT_MIN_USAGE = config.compactMinUsage;
 const DEFAULT_TEMP = config.defaultTemperature;
 const MAX_TOKENS = config.maxTokens;
+const MAX_CONTINUE_ROUNDS = config.maxContinueRounds;
 const COMPACT_TEMP = config.compactTemperature;
 const COMPACT_MAX_TOKENS = config.compactMaxTokens;
 const SUMMARY_PROMPT = config.summaryPrompt;
@@ -251,6 +252,8 @@ function canCompact() {
 
 /**
  * Sends a message to the model and streams the response back token by token.
+ * If the model hits the maxTokens limit, it automatically continues generation
+ * (assistant prefill pattern) until the model naturally stops or maxContinueRounds is reached.
  *
  * @param {string} userText — the user's message
  * @param {function} onChunk — callback fired for each generated token (streaming)
@@ -268,6 +271,9 @@ async function chat(userText, onChunk, options) {
 
   const temp = (options && typeof options.temperature === 'number') ? options.temperature : DEFAULT_TEMP;
 
+  let fullText = '';
+
+  // Round 0: initial generation with the user's prompt
   let response;
   try {
     abortController = new AbortController();
@@ -304,7 +310,56 @@ async function chat(userText, onChunk, options) {
     throw new Error('Generation returned invalid response: missing responseText');
   }
 
-  return cleanResponse(response.responseText);
+  fullText = response.responseText;
+
+  // Auto-continue if the model hit the token limit (not natural stop)
+  for (let round = 0; round < MAX_CONTINUE_ROUNDS; round++) {
+    if (response.stopReason !== 'maxTokens') break;
+
+    console.log(`[llm] Auto-continue round ${round + 1}/${MAX_CONTINUE_ROUNDS} (stopReason: maxTokens)`);
+
+    // promptWithMeta already recorded the partial response in chat history.
+    // Just send "continue" — the model sees its own partial response in history
+    // and picks up where it left off.
+    try {
+      abortController = new AbortController();
+      response = await session.promptWithMeta('continue', {
+        temperature: temp,
+        maxTokens: MAX_TOKENS,
+        signal: abortController.signal,
+        stopOnAbortSignal: true,
+        dryRepeatPenalty: {
+          strength: 0.8,
+          base: 1.75,
+          allowedLength: 4,
+          lastTokens: 256,
+        },
+        onTextChunk(chunk) {
+          if (onChunk && typeof chunk === 'string') {
+            try {
+              onChunk(chunk);
+            } catch (err) {
+              console.error('[llm] onChunk callback error:', err.message);
+            }
+          }
+        },
+      });
+    } catch (err) {
+      abortController = null;
+      console.error('[llm] Auto-continue failed:', err.message);
+      break;
+    }
+
+    abortController = null;
+
+    if (response && response.responseText) {
+      fullText += response.responseText;
+    }
+
+    if (response && response.stopReason !== 'maxTokens') break;
+  }
+
+  return cleanResponse(fullText);
 }
 
 /**
@@ -352,8 +407,26 @@ async function compact(onChunk) {
   try {
     for (const item of history) {
       if (!item || typeof item !== 'object') continue;
-      const role = item.role || 'unknown';
-      const text = item.text || item.content || '';
+
+      let role = '';
+      let text = '';
+
+      if (item.type === 'system') {
+        role = 'system';
+        text = typeof item.text === 'string' ? item.text : '';
+      } else if (item.type === 'user') {
+        role = 'user';
+        text = item.text || '';
+      } else if (item.type === 'model') {
+        role = 'assistant';
+        // Model response is an array of strings (and possibly function calls)
+        if (Array.isArray(item.response)) {
+          text = item.response
+            .filter(r => typeof r === 'string')
+            .join('');
+        }
+      }
+
       if (text) {
         conversationText += `${role}: ${text}\n`;
       }

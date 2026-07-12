@@ -34,7 +34,8 @@ module.exports = {
 
   // Generation defaults
   defaultTemperature: 0.4,
-  maxTokens: 768,
+  maxTokens: 1024,
+  maxContinueRounds: 3,
 
   // Compaction
   compactTemperature: 0.3,
