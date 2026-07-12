@@ -91,7 +91,7 @@ app.whenReady().then(() => {
   });
 
   // Chat: send message with streaming
-  ipcMain.handle('chat:send', async (event, userText) => {
+  ipcMain.handle('chat:send', async (event, userText, options) => {
     if (!userText || typeof userText !== 'string') {
       return { ok: false, error: 'Invalid input: message must be a non-empty string' };
     }
@@ -101,7 +101,7 @@ app.whenReady().then(() => {
         if (event.sender && !event.sender.isDestroyed()) {
           event.sender.send('chat:chunk', chunk);
         }
-      });
+      }, options);
       const usage = llm.getContextUsage();
       if (typeof response !== 'string') {
         return { ok: false, error: 'Model returned non-string response' };

@@ -3,15 +3,15 @@
     <!-- Title bar -->
     <div class="titlebar">
       <div class="titlebar-left">
-        <span class="dot dot-red" @click="close"></span>
-        <span class="dot dot-yellow" @click="minimize"></span>
-        <span class="dot dot-green" @click="toggleMaximize"></span>
-      </div>
-      <div class="titlebar-title">☾ nyx-dev — your local AI dev companion</div>
-      <div class="titlebar-right">
         <span class="status-pill" :class="statusClass">
           ● {{ statusText }}
         </span>
+      </div>
+      <div class="titlebar-title">☾ nyx-dev — your local AI dev companion</div>
+      <div class="titlebar-right">
+        <span class="dot dot-yellow" @click="minimize"></span>
+        <span class="dot dot-green" @click="toggleMaximize"></span>
+        <span class="dot dot-red" @click="close"></span>
       </div>
     </div>
 
@@ -25,9 +25,26 @@
         <span class="label">quant:</span>
         <span class="value">{{ modelQuant }}</span>
       </div>
-      <div class="model-info">
+      <div class="model-info temp-info">
         <span class="label">temp:</span>
-        <span class="value">0.4</span>
+        <span class="temp-display" @click="tempEditing = !tempEditing" :title="`temperature: ${tempValue} — click to adjust`">
+          {{ tempValue }} <span class="temp-desc">{{ tempDesc }}</span>
+        </span>
+        <div v-if="tempEditing" class="temp-slider-wrap" @mouseleave="commitTemp">
+          <input
+            class="temp-slider"
+            type="range"
+            min="0"
+            max="2"
+            step="0.1"
+            v-model.number="tempValue"
+            @input="onTempSlide"
+            @change="commitTemp"
+            @blur="commitTemp"
+            ref="tempSliderEl"
+          />
+          <span class="temp-slider-val">{{ tempValue }}</span>
+        </div>
       </div>
       <div class="model-info">
         <span class="label">ctx usage:</span>
@@ -166,9 +183,8 @@
           <span class="ctx-bar-fill" :style="{ width: usagePercent + '%' }" :class="{ warn: usagePercent >= 80 }"></span>
         </span>
         <button
-          v-if="canCompactBtn"
           class="compact-btn"
-          :disabled="isBusy || compacting"
+          :disabled="!canCompactBtn || isBusy || compacting"
           @click="manualCompact"
           title="compact conversation context"
         >{{ compacting ? 'compacting…' : 'compact' }}</button>
@@ -178,11 +194,33 @@
         <span class="sb-item" :class="{ accent: modelLoaded }">● {{ modelLoaded ? 'ready' : 'idle' }}</span>
       </div>
     </footer>
+
+    <!-- Model loading modal -->
+    <transition name="modal-fade">
+      <div v-if="modelLoading || modelJustLoaded" class="loading-overlay" @click.self="dismissLoadedModal">
+        <div class="loading-modal">
+          <template v-if="modelLoading">
+            <div class="loading-spinner"></div>
+            <div class="loading-modal-title">loading model</div>
+            <div class="loading-modal-status">{{ loadStatus || 'initializing…' }}</div>
+            <div class="loading-modal-progress">
+              <div class="loading-modal-progress-fill" :class="{ indeterminate: true }"></div>
+            </div>
+          </template>
+          <template v-else-if="modelJustLoaded">
+            <div class="loading-modal-check">✓</div>
+            <div class="loading-modal-title">model loaded</div>
+            <div class="loading-modal-status">nyx is ready</div>
+            <button class="loading-modal-btn" @click="dismissLoadedModal">start</button>
+          </template>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, onUnmounted, computed } from 'vue';
+import { ref, nextTick, onMounted, onUnmounted, computed, watch } from 'vue';
 import { renderMarkdown } from './markdown.js';
 import logoRaw from '../resources/logo.txt?raw';
 import DocBrowser from './components/DocBrowser.vue';
@@ -207,15 +245,29 @@ let docsContextContent = '';
 const docPanelWidth = ref(340);
 let resizing = false;
 
-const modelName = ref('qwen2.5-coder:1.5b');
+const modelName = ref('qwen2.5-coder:1.5b-instruct');
 const modelQuant = ref('Q4_K_M');
 const canCompactBtn = ref(false);
 const compacting = ref(false);
+const tempValue = ref('0.4');
+const tempEditing = ref(false);
+const tempSliderEl = ref(null);
+const modelJustLoaded = ref(false);
 
 // ---- Computed ----
 const usagePercent = computed(() => {
   if (tokensTotal.value === 0) return 0;
   return Math.round((tokensUsed.value / tokensTotal.value) * 100);
+});
+
+const tempDesc = computed(() => {
+  const t = parseFloat(tempValue.value);
+  if (t <= 0.1) return 'precise';
+  if (t <= 0.4) return 'focused';
+  if (t <= 0.7) return 'balanced';
+  if (t <= 1.0) return 'lively';
+  if (t <= 1.4) return 'creative';
+  return 'chaotic';
 });
 
 const msgCount = computed(() => messages.value.length);
@@ -282,6 +334,7 @@ async function loadModel() {
       modelQuant.value = result.meta.quant || 'unknown';
       tokensUsed.value = result.usage.used || 0;
       tokensTotal.value = result.usage.total || 0;
+      modelJustLoaded.value = true;
     } else {
       error.value = result.error || 'Failed to load model: unknown error';
     }
@@ -293,6 +346,10 @@ async function loadModel() {
     if (unsub) try { unsub(); } catch (_) {}
     checkCanCompact();
   }
+}
+
+function dismissLoadedModal() {
+  modelJustLoaded.value = false;
 }
 
 // ---- Chat ----
@@ -373,7 +430,9 @@ async function sendMessage() {
       }
     });
 
-    const result = await window.terminal.send(promptText);
+    const result = await window.terminal.send(promptText, {
+      temperature: parseFloat(tempValue.value) || 0.4,
+    });
     if (result.ok && typeof result.response === 'string') {
       // Use the cleaned final response
       assistantMsg.value.text = result.response;
@@ -516,6 +575,38 @@ function toggleDocPanel() {
   showDocPanel.value = !showDocPanel.value;
 }
 
+// ---- Temperature editing ----
+function onTempSlide() {
+  // live update — value is already a number from v-model.number
+}
+
+function commitTemp() {
+  let val = parseFloat(tempValue.value);
+  if (isNaN(val)) val = 0.4;
+  if (val < 0) val = 0;
+  if (val > 2) val = 2;
+  tempValue.value = val.toFixed(1);
+  tempEditing.value = false;
+}
+
+// Auto-focus slider when opened
+watch(tempEditing, (open) => {
+  if (open) {
+    nextTick(() => {
+      try { tempSliderEl.value?.focus(); } catch (_) {}
+    });
+  }
+});
+
+// Close slider when clicking outside
+function onTempOutsideClick(e) {
+  if (!tempEditing.value) return;
+  const target = e.target;
+  if (!target) return;
+  if (target.closest?.('.temp-info')) return;
+  commitTemp();
+}
+
 function startResize(e) {
   if (!e || typeof e.preventDefault !== 'function') return;
   e.preventDefault();
@@ -605,6 +696,7 @@ onMounted(() => {
   nextTick(() => {
     try { inputEl.value?.focus(); } catch (_) {}
   });
+  document.addEventListener('mousedown', onTempOutsideClick);
 });
 
 onUnmounted(() => {
@@ -613,6 +705,7 @@ onUnmounted(() => {
   try {
     document.body.style.userSelect = '';
   } catch (_) {}
+  document.removeEventListener('mousedown', onTempOutsideClick);
 });
 </script>
 
@@ -710,6 +803,74 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+/* ---- Temperature slider ---- */
+.temp-info {
+  position: relative;
+}
+.temp-display {
+  color: var(--text);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 1px 4px;
+  border: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+.temp-display:hover {
+  border-color: var(--border);
+}
+.temp-desc {
+  color: var(--text-dim);
+  font-size: 10px;
+  margin-left: 2px;
+}
+.temp-slider-wrap {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 50;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.8);
+}
+.temp-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 120px;
+  height: 4px;
+  background: var(--border);
+  outline: none;
+  cursor: pointer;
+}
+.temp-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--cyan);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 6px var(--cyan-glow);
+}
+.temp-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--cyan);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 6px var(--cyan-glow);
+}
+.temp-slider-val {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--cyan);
+  min-width: 24px;
+  text-align: right;
 }
 .modelbar-spacer {
   flex: 1;
@@ -1113,6 +1274,119 @@ onUnmounted(() => {
 .compact-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ---- Model loading modal ---- */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+.loading-modal {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 0 1px var(--cyan-dim);
+  padding: 32px 40px;
+  min-width: 280px;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--border);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 16px;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.loading-modal-check {
+  font-size: 28px;
+  color: var(--cyan);
+  margin-bottom: 12px;
+  line-height: 1;
+  text-shadow: 0 0 12px var(--cyan-glow);
+}
+.loading-modal-title {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--text);
+  text-transform: lowercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+  font-weight: bold;
+}
+.loading-modal-status {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+}
+.loading-modal-progress {
+  width: 100%;
+  height: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+.loading-modal-progress-fill {
+  height: 100%;
+  background: var(--cyan);
+  width: 30%;
+}
+.loading-modal-progress-fill.indeterminate {
+  animation: indeterminate 1.4s ease-in-out infinite;
+}
+@keyframes indeterminate {
+  0% { margin-left: -30%; }
+  50% { margin-left: 50%; }
+  100% { margin-left: 100%; }
+}
+.loading-modal-btn {
+  background: transparent;
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 6px 24px;
+  cursor: pointer;
+  text-transform: lowercase;
+  letter-spacing: 1px;
+  transition: all 0.15s;
+}
+.loading-modal-btn:hover {
+  background: rgba(0, 229, 255, 0.1);
+  box-shadow: 0 0 8px var(--cyan-glow);
+}
+
+/* Modal transition */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.2s;
+}
+.modal-fade-enter-active .loading-modal,
+.modal-fade-leave-active .loading-modal {
+  transition: transform 0.2s, opacity 0.2s;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+.modal-fade-enter-from .loading-modal,
+.modal-fade-leave-to .loading-modal {
+  transform: scale(0.95);
+  opacity: 0;
 }
 
 /* ---- Markdown body ---- */

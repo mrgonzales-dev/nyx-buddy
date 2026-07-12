@@ -1,0 +1,9 @@
+{
+  "name": "qwen2.5-coder-1.5b-instruct",
+  "filename": "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+  "quant": "Q4_K_M",
+  "size": "1.1 GB",
+  "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+  "sha256": "",
+  "minAppVersion": "0.1.0"
+}

@@ -49,11 +49,11 @@ contextBridge.exposeInMainWorld('terminal', {
   },
 
   // Chat
-  send: (text) => {
+  send: (text, options) => {
     if (!text || typeof text !== 'string') {
       return Promise.resolve({ ok: false, error: 'Invalid input: text must be a non-empty string' });
     }
-    return safeInvoke('chat:send', text);
+    return safeInvoke('chat:send', text, options);
   },
   stop: () => safeInvoke('chat:stop'),
   compact: () => safeInvoke('chat:compact'),

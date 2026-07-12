@@ -20,7 +20,9 @@
           @click="switchTab('downloading')"
         >downloading <span class="tab-badge">{{ downloads.length }}</span></button>
       </div>
-      <button class="doc-close" @click="$emit('close')">×</button>
+      <div class="doc-header-actions">
+        <button class="doc-close" @click="$emit('close')" title="close panel">×</button>
+      </div>
     </div>
 
     <!-- Installed tab -->
@@ -38,8 +40,10 @@
             class="docset-item"
             @click="openDocset(ds.slug)"
           >
-            <div class="docset-name">{{ ds.name }}</div>
-            <div class="docset-meta">{{ ds.version }} · {{ ds.entry_count }} entries</div>
+            <div class="docset-info">
+              <div class="docset-name">{{ ds.name }}</div>
+              <div class="docset-meta">{{ ds.version }} · {{ ds.entry_count }} entries</div>
+            </div>
             <button class="docset-remove" @click.stop="confirmUninstall(ds)">×</button>
           </div>
         </div>
@@ -72,9 +76,19 @@
         </div>
 
         <!-- Split view: entry list + page content -->
-        <div class="doc-split">
+        <div class="doc-split" :class="{ 'entry-collapsed': entryListCollapsed }">
           <!-- Left: entry list / search results -->
-          <div class="entry-list">
+          <div v-if="!entryListCollapsed" class="entry-list">
+            <!-- Collapse bar on top -->
+            <div class="entry-collapse-bar">
+              <span class="entry-collapse-label">entries</span>
+              <button
+                class="entry-collapse-btn"
+                @click="entryListCollapsed = true"
+                title="hide entry list"
+              >◀</button>
+            </div>
+
             <!-- Type filter chips -->
             <div v-if="browseTypes.length > 0 && !searchQuery" class="type-filters">
               <button
@@ -127,6 +141,10 @@
 
           <!-- Right: page content -->
           <div class="page-view" ref="pageView" @mouseup="onTextSelection">
+            <!-- Expand bar when entry list is collapsed -->
+            <div v-if="entryListCollapsed" class="entry-expand-bar" @click="entryListCollapsed = false" title="show entry list">
+              <span>entries ▶</span>
+            </div>
             <div v-if="pageLoading" class="doc-empty">loading page...</div>
             <div v-else-if="pageError" class="doc-empty err">error: {{ pageError }}</div>
             <div
@@ -237,6 +255,7 @@ const browseEntries = ref([]);   // auto-loaded entry list when docset opens
 const browseTypes = ref([]);      // type categories
 const activeType = ref(null);     // selected type filter
 const browseView = ref(true);     // show entry list by default (vs page view)
+const entryListCollapsed = ref(false);  // collapse entry list sidebar
 
 // ---- Modal state ----
 const modal = ref({
@@ -445,6 +464,7 @@ function closeDocset() {
   currentPageHtml.value = null;
   currentPageMarkdown.value = '';
   hasSelection.value = false;
+  entryListCollapsed.value = false;
   pageError.value = '';
 }
 
@@ -757,6 +777,12 @@ onMounted(() => {
   color: var(--cyan);
   border-bottom-color: var(--cyan);
 }
+.doc-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
 .doc-close {
   background: transparent;
   border: none;
@@ -765,6 +791,7 @@ onMounted(() => {
   cursor: pointer;
   padding: 2px 8px;
   line-height: 1;
+  transition: color 0.15s;
 }
 .doc-close:hover {
   color: var(--cyan);
@@ -812,7 +839,8 @@ onMounted(() => {
   background: rgba(0, 229, 255, 0.04);
 }
 .docset-info {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .docset-name {
   font-size: 13px;
@@ -824,6 +852,8 @@ onMounted(() => {
   margin-top: 2px;
 }
 .docset-remove {
+  flex: 0 0 auto;
+  margin-left: auto;
   background: transparent;
   border: none;
   color: var(--text-dim);
@@ -943,6 +973,7 @@ onMounted(() => {
   min-height: 0;
   display: flex;
   overflow: hidden;
+  position: relative;
 }
 .entry-list {
   flex: 0 0 40%;
@@ -950,6 +981,61 @@ onMounted(() => {
   max-width: 200px;
   overflow-y: auto;
   border-right: 1px solid var(--border);
+}
+/* Collapse bar on top of entry list */
+.entry-collapse-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.entry-collapse-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.entry-collapse-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.entry-collapse-btn:hover {
+  color: var(--cyan);
+}
+/* Expand bar when entry list is collapsed */
+.entry-expand-bar {
+  display: inline-block;
+  padding: 3px 10px;
+  margin-bottom: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.entry-expand-bar:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  background: rgba(0, 229, 255, 0.05);
+}
+/* When collapsed, page view takes full width */
+.doc-split.entry-collapsed .page-view {
+  flex: 1 1 100%;
 }
 .type-filters {
   display: flex;

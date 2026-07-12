@@ -1,7 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 
-const MODEL_PATH = path.join(__dirname, '..', 'resources', 'models', 'qwen2.5-coder-1.5b.gguf');
+const MODEL_PATH = path.join(__dirname, '..', 'resources', 'models', 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf');
 const SYSTEM_PROMPT = 'You are Nyx, a local AI dev companion running inside a terminal-based app called nyx-dev. You help developers with code, syntax, and concepts. Keep responses concise and terminal-friendly. You are a guide, not an agent — the user writes the code, you help them understand.';
 
 let llamaModule = null;
@@ -15,9 +15,9 @@ let loadingPromise = null;
 let currentSequence = null; // tracks the active generation for stop()
 
 const MODEL_META = {
-  name: 'qwen2.5-coder:1.5b',
+  name: 'qwen2.5-coder:1.5b-instruct',
   quant: 'Q4_K_M',
-  size: '986 MB',
+  size: '1.1 GB',
 };
 
 function getModelMeta() {
@@ -156,7 +156,7 @@ function getContextUsage() {
   }
 }
 
-async function chat(userText, onChunk) {
+async function chat(userText, onChunk, options) {
   if (!userText || typeof userText !== 'string') {
     throw new Error('Invalid input: userText must be a non-empty string');
   }
@@ -169,11 +169,13 @@ async function chat(userText, onChunk) {
 
   if (!session) throw new Error('Model not loaded: session is null');
 
+  const temp = (options && typeof options.temperature === 'number') ? options.temperature : 0.4;
+
   let response;
   try {
     currentSequence = sequence;
     response = await session.promptWithMeta(userText, {
-      temperature: 0.4,
+      temperature: temp,
       maxTokens: 768,
       dryRepeatPenalty: {
         strength: 0.8,
