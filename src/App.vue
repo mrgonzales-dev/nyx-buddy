@@ -15,6 +15,13 @@
       </div>
     </div>
 
+    <!-- Update banner -->
+    <div v-if="updateInfo" class="update-banner" @click="openUpdate">
+      <span class="update-banner-text">update available — v{{ updateInfo.version.replace(/^v/, '') }}</span>
+      <span class="update-banner-action">click to download</span>
+      <span class="update-banner-close" @click.stop="dismissUpdate">x</span>
+    </div>
+
     <!-- Model bar -->
     <div class="modelbar">
       <div class="model-info">
@@ -289,6 +296,7 @@ const nickname = ref(localStorage.getItem('nyx-nickname') || '');
 const showNicknameModal = ref(false);
 const nicknameInput = ref('');
 const nicknameError = ref('');
+const updateInfo = ref(null); // { version, url, releaseNotes } or null
 
 // ---- Computed ----
 const usagePercent = computed(() => {
@@ -430,6 +438,33 @@ async function saveNickname() {
   } catch (err) {
     error.value = `Failed to auto-load model: ${err.message}`;
   }
+  // Check for updates (non-blocking, silent fail)
+  checkForUpdates();
+}
+
+// ---- Update check ----
+async function checkForUpdates() {
+  if (!window.terminal?.checkForUpdates) return;
+  try {
+    const result = await window.terminal.checkForUpdates();
+    if (result.hasUpdate) {
+      updateInfo.value = result;
+    }
+  } catch (err) {
+    // Silent fail — no internet, GitHub down, etc.
+    console.error('[update] check failed:', err.message);
+  }
+}
+
+function openUpdate() {
+  if (!updateInfo.value?.url) return;
+  if (window.terminal?.openReleasePage) {
+    window.terminal.openReleasePage(updateInfo.value.url);
+  }
+}
+
+function dismissUpdate() {
+  updateInfo.value = null;
 }
 
 // ---- Chat ----
@@ -796,6 +831,8 @@ onMounted(() => {
     } catch (err) {
       error.value = `Failed to auto-load model: ${err.message}`;
     }
+    // Check for updates (non-blocking, silent fail)
+    checkForUpdates();
   }
   nextTick(() => {
     try { inputEl.value?.focus(); } catch (_) {}
@@ -1529,5 +1566,38 @@ onUnmounted(() => {
   font-size: 11px;
   color: #ff6b6b;
   margin-bottom: 8px;
+}
+
+/* ---- Update banner ---- */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px;
+  background: rgba(255, 184, 108, 0.1);
+  border-bottom: 1px solid rgba(255, 184, 108, 0.3);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #ffb86c;
+  cursor: pointer;
+}
+.update-banner:hover {
+  background: rgba(255, 184, 108, 0.15);
+}
+.update-banner-text {
+  font-weight: bold;
+}
+.update-banner-action {
+  color: var(--text-dim);
+  text-decoration: underline;
+}
+.update-banner-close {
+  margin-left: auto;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 4px;
+}
+.update-banner-close:hover {
+  color: #ff6b6b;
 }
 </style>

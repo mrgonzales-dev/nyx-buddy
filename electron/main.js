@@ -3,6 +3,7 @@ const path = require('path');
 const llm = require('./llmEngineV2');
 const docs = require('./docs');
 const modelDownload = require('./modelDownload');
+const updateEngine = require('./updateEngine');
 
 const isDev = process.env.ELECTRON_DEV === '1';
 
@@ -115,6 +116,26 @@ app.whenReady().then(() => {
         usage: { used: 0, total: 0 },
         error: err.message,
       };
+    }
+  });
+
+  // Update: check for new releases
+  ipcMain.handle('update:check', async () => {
+    try {
+      const result = await updateEngine.checkForUpdates();
+      return result;
+    } catch (err) {
+      return { hasUpdate: false, error: err.message };
+    }
+  });
+
+  // Update: open release page in browser
+  ipcMain.handle('update:open', async (_event, url) => {
+    try {
+      updateEngine.openReleasePage(url);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
     }
   });
 

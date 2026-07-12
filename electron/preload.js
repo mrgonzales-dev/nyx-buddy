@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld('terminal', {
   loadModel: () => safeInvoke('model:load'),
   getModelStatus: () => safeInvoke('model:status'),
   setNickname: (name) => safeInvoke('user:setNickname', name),
+
+  // Update
+  checkForUpdates: () => safeInvoke('update:check'),
+  openReleasePage: (url) => safeInvoke('update:open', url),
   onModelStatus: (cb) => {
     if (typeof cb !== 'function') {
       console.error('[preload] onModelStatus: callback is not a function');
