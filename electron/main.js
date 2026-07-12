@@ -199,6 +199,16 @@ app.whenReady().then(() => {
     }
   });
 
+  // Chat: clear conversation
+  ipcMain.handle('chat:clear', async () => {
+    try {
+      llm.clear();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   // Chat: manual compact
   ipcMain.handle('chat:compact', async (event) => {
     try {

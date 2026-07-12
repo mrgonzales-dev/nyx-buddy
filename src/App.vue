@@ -120,6 +120,11 @@
               class="msg-text markdown-body"
               v-html="renderMarkdown(msg.text)"
             ></div>
+            <div
+              v-else-if="msg.role === 'system' && msg.text.includes('context compacted')"
+              class="msg-text markdown-body compact-notice"
+              v-html="renderMarkdown(msg.text)"
+            ></div>
             <div v-else class="msg-text">{{ msg.text }}</div>
             <span v-if="msg.streaming" class="cursor inline"></span>
           </div>
@@ -556,14 +561,14 @@ async function sendMessage() {
         tokensTotal.value = result.usage.total || 0;
       }
 
-      // If auto-compact happened, show a system message
+      // If auto-compact happened, replace history with the summary
       if (result.autoCompacted && result.compactSummary) {
-        messages.value.push({
+        messages.value = [{
           role: 'system',
-          text: `[context auto-compacted — ${tokensUsed.value}/${tokensTotal.value} tokens]`,
+          text: `**context auto-compacted** — previous conversation summarized below:\n\n${result.compactSummary}`,
           ts: timestamp(),
           streaming: false,
-        });
+        }];
         scrollToBottom();
       }
     } else {
@@ -610,12 +615,13 @@ async function manualCompact() {
         tokensUsed.value = result.usage.used || 0;
         tokensTotal.value = result.usage.total || 0;
       }
-      messages.value.push({
+      // Replace chat history with the summary
+      messages.value = [{
         role: 'system',
-        text: `[context compacted — ${tokensUsed.value}/${tokensTotal.value} tokens]`,
+        text: `**context compacted** — previous conversation summarized below:\n\n${result.summary}`,
         ts: timestamp(),
         streaming: false,
-      });
+      }];
       scrollToBottom();
     } else {
       error.value = result.error || 'Compact failed: unknown error';
@@ -660,6 +666,9 @@ function handleCommand(cmd) {
     });
   } else if (command === 'clear') {
     messages.value = [];
+    if (window.terminal?.clear) {
+      window.terminal.clear();
+    }
   } else if (command === 'load') {
     loadModel();
   } else if (command === 'status') {
@@ -1287,6 +1296,21 @@ onUnmounted(() => {
 .msg.system .msg-body {
   color: var(--text-dim);
   font-size: 12px;
+}
+.compact-notice {
+  border-left: 2px solid var(--cyan-dim);
+  padding: 8px 12px;
+  margin: 4px 0;
+  background: rgba(0, 229, 255, 0.04);
+  font-size: 12px;
+  color: var(--text);
+}
+.compact-notice p {
+  margin: 4px 0;
+}
+.compact-notice p:first-child {
+  color: var(--cyan);
+  font-weight: bold;
 }
 .msg-text {
   white-space: pre-wrap;

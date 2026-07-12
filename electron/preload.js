@@ -78,6 +78,7 @@ contextBridge.exposeInMainWorld('terminal', {
     return safeInvoke('chat:send', text, options);
   },
   stop: () => safeInvoke('chat:stop'),
+  clear: () => safeInvoke('chat:clear'),
   compact: () => safeInvoke('chat:compact'),
   canCompact: () => safeInvoke('chat:canCompact'),
   onChunk: (cb) => {

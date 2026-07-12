@@ -1,6 +1,6 @@
 {
   "name": "nyx-dev",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Nyx — your local AI dev companion",
   "main": "electron/main.js",
   "scripts": {

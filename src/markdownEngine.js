@@ -49,16 +49,24 @@ const md = new MarkdownIt({
   breaks: false,
   highlight(str, lang) {
     if (typeof str !== 'string') return '';
-    const langLabel = lang ? md.utils.escapeHtml(lang) : 'text';
     if (lang && hljs.getLanguage(lang)) {
       try {
         const highlighted = hljs.highlight(str, { language: lang, ignoreIllegals: true }).value;
-        return `<pre class="code-block"><div class="code-header"><span class="code-lang">${langLabel}</span><button class="code-copy-btn" onclick="copyCodeBlock(this)">copy</button></div><code class="hljs">${highlighted}</code></pre>`;
+        return `<pre class="code-block"><div class="code-header"><span class="code-lang">${md.utils.escapeHtml(lang)}</span><button class="code-copy-btn" onclick="copyCodeBlock(this)">copy</button></div><code class="hljs">${highlighted}</code></pre>`;
       } catch (err) {
         console.error('[markdown] Highlight failed for lang "%s": %s', lang, err.message);
       }
     }
-    return `<pre class="code-block"><div class="code-header"><span class="code-lang">${langLabel}</span><button class="code-copy-btn" onclick="copyCodeBlock(this)">copy</button></div><code class="hljs">${md.utils.escapeHtml(str)}</code></pre>`;
+    // No language specified — try auto-detection
+    try {
+      const auto = hljs.highlightAuto(str);
+      if (auto.language && auto.relevance >= 5) {
+        return `<pre class="code-block"><div class="code-header"><span class="code-lang">${md.utils.escapeHtml(auto.language)}</span><button class="code-copy-btn" onclick="copyCodeBlock(this)">copy</button></div><code class="hljs">${auto.value}</code></pre>`;
+      }
+    } catch (err) {
+      // fall through to plain
+    }
+    return `<pre class="code-block"><div class="code-header"><span class="code-lang">text</span><button class="code-copy-btn" onclick="copyCodeBlock(this)">copy</button></div><code class="hljs">${md.utils.escapeHtml(str)}</code></pre>`;
   },
 });
 

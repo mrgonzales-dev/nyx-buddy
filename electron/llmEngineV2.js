@@ -376,6 +376,19 @@ function stop() {
 }
 
 /**
+ * Clears the conversation history and resets the context window.
+ * Called when the user runs /clear.
+ */
+function clear() {
+  if (!session) return;
+  try {
+    session.resetChatHistory();
+  } catch (err) {
+    console.error('[llm] Failed to reset chat history:', err.message);
+  }
+}
+
+/**
  * Compacts the conversation context:
  *   1. Get the current chat history
  *   2. Ask the model to summarize it
@@ -525,6 +538,7 @@ module.exports = {
   canCompact,
   chat,
   stop,
+  clear,
   compact,
   setNickname,
   getNickname,

@@ -6,10 +6,10 @@ const path = require('path');
 const { app } = require('electron');
 
 // Model lives in user data dir (writable, persists across updates)
-// e.g. ~/.config/nyx-dev/models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+// In dev mode (running from source), use the local resources/models folder
 function getModelPath() {
-  const manifest = require('./modelDownload').getManifest();
-  return path.join(app.getPath('userData'), 'models', manifest.filename);
+  const modelDownload = require('./modelDownload');
+  return modelDownload.getModelPath();
 }
 
 module.exports = {

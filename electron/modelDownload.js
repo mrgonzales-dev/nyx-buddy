@@ -28,8 +28,9 @@ function getManifest() {
 
 // Where the model should live on this user's machine
 function getModelDir() {
-  // In dev mode, use the local resources folder
-  if (process.env.ELECTRON_DEV === '1') {
+  // In dev mode (running from source, not packaged), use the local resources folder
+  const isDev = process.env.ELECTRON_DEV === '1' || !app.isPackaged;
+  if (isDev) {
     return path.join(__dirname, '..', 'resources', 'models');
   }
   return path.join(app.getPath('userData'), 'models');
