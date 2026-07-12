@@ -3,7 +3,7 @@ dist
 release
 *.log
 .DS_Store
-resources/models/*.gguf
+resources/models/
 resources/*.gguf
 .devin/
 .devin
