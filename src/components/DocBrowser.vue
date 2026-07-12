@@ -229,7 +229,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue';
 import TurndownService from 'turndown';
-import { renderMarkdown } from '../markdown.js';
+import { renderMarkdown } from '../markdownEngine.js';
 
 const emit = defineEmits(['close', 'feed']);
 
