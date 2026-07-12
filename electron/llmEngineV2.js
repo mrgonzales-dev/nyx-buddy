@@ -24,7 +24,6 @@ let LlamaChatSession = null;
 let JinjaTemplateChatWrapper = null;
 
 // ---- Constants (from config) ----
-const MODEL_PATH = config.modelPath;
 const SYSTEM_PROMPT = config.systemPrompt;
 const MODEL_META = config.modelMeta;
 const COMPACT_THRESHOLD = config.compactThreshold;
@@ -45,7 +44,7 @@ let context = null;      // context window (RAM allocation)
 let sequence = null;     // generation sequence
 let chatWrapper = null;  // Jinja chat template wrapper
 let loadingPromise = null;       // prevents double-loading
-let currentSequence = null;      // tracks active generation for stop()
+let abortController = null;       // used to stop generation
 
 // ---- Functions (stubs — to be implemented) ----
 
@@ -95,6 +94,8 @@ async function ensureModel(onStatus) {
 
   loadingPromise = (async () => {
     try {
+      const MODEL_PATH = config.modelPath;
+
       if (!fs.existsSync(MODEL_PATH)) {
         throw new Error(`Model file not found: ${MODEL_PATH}`);
       }
@@ -181,7 +182,7 @@ function getContextUsage() {
   if (!sequence) return { used: 0, total: 0 };
   try {
     const used = sequence.contextTokens?.length ?? 0;
-    const total = sequence.context?.contextSize ?? 0;
+    const total = sequence.contextSize ?? 0;
     return { used, total };
   } catch (err) {
     console.error('[llm] Failed to get context usage:', err.message);
@@ -233,10 +234,12 @@ async function chat(userText, onChunk, options) {
 
   let response;
   try {
-    currentSequence = sequence;
+    abortController = new AbortController();
     response = await session.promptWithMeta(userText, {
       temperature: temp,
       maxTokens: MAX_TOKENS,
+      signal: abortController.signal,
+      stopOnAbortSignal: true,
       dryRepeatPenalty: {
         strength: 0.8,
         base: 1.75,
@@ -254,11 +257,11 @@ async function chat(userText, onChunk, options) {
       },
     });
   } catch (err) {
-    currentSequence = null;
+    abortController = null;
     throw new Error(`Generation failed: ${err.message}`);
   }
 
-  currentSequence = null;
+  abortController = null;
 
   if (!response) throw new Error('Generation returned null response');
   if (!response.responseText && response.responseText !== '') {
@@ -271,14 +274,14 @@ async function chat(userText, onChunk, options) {
 /**
  * Stops the current generation immediately.
  */
-async function stop() {
-  if (!currentSequence) return;
+function stop() {
+  if (!abortController) return;
   try {
-    await currentSequence.stopGeneration();
+    abortController.abort();
   } catch (err) {
-    console.error('[llm] Failed to stop generation:', err.message);
+    console.error('[llm] Failed to abort generation:', err.message);
   }
-  currentSequence = null;
+  abortController = null;
 }
 
 /**
@@ -331,10 +334,12 @@ async function compact(onChunk) {
 
   let summary = '';
   try {
-    currentSequence = sequence;
+    abortController = new AbortController();
     const response = await session.promptWithMeta(summaryPrompt, {
       temperature: COMPACT_TEMP,
       maxTokens: COMPACT_MAX_TOKENS,
+      signal: abortController.signal,
+      stopOnAbortSignal: true,
       onTextChunk(chunk) {
         if (onChunk && typeof chunk === 'string') {
           try {
@@ -347,11 +352,11 @@ async function compact(onChunk) {
     });
     summary = cleanResponse(response.responseText);
   } catch (err) {
-    currentSequence = null;
+    abortController = null;
     throw new Error(`Summary generation failed: ${err.message}`);
   }
 
-  currentSequence = null;
+  abortController = null;
 
   if (!summary) {
     throw new Error('Summary generation returned empty response');
@@ -364,13 +369,18 @@ async function compact(onChunk) {
   }
 
   try {
+    abortController = new AbortController();
     const contextPrompt = CONTEXT_INJECT_PROMPT.replace('${summary}', summary);
     await session.promptWithMeta(contextPrompt, {
       temperature: COMPACT_TEMP,
       maxTokens: 64,
+      signal: abortController.signal,
+      stopOnAbortSignal: true,
     });
   } catch (err) {
     console.error('[llm] Failed to inject summary after reset:', err.message);
+  } finally {
+    abortController = null;
   }
 
   const usage = getContextUsage();
@@ -379,7 +389,7 @@ async function compact(onChunk) {
 
 /**
  * Strips internal model artifacts from the response:
- *   -  tags (reasoning)
+ *   - <think> tags (reasoning)
  *   - <function=...> tags (tool calls)
  *
  * @param {string} text — raw model output

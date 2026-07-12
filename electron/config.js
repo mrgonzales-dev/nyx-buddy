@@ -3,10 +3,20 @@
  */
 
 const path = require('path');
+const { app } = require('electron');
+
+// Model lives in user data dir (writable, persists across updates)
+// e.g. ~/.config/nyx-dev/models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+function getModelPath() {
+  const manifest = require('./modelDownload').getManifest();
+  return path.join(app.getPath('userData'), 'models', manifest.filename);
+}
 
 module.exports = {
-  // Model file location
-  modelPath: path.join(__dirname, '..', 'resources', 'models', 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf'),
+  // Model file location (resolved at runtime, not at import time)
+  get modelPath() {
+    return getModelPath();
+  },
 
   // System prompt — defines Nyx's identity and behavior
   systemPrompt: 'You are Nyx, a local AI dev companion running inside a terminal-based app called nyx-dev. You help developers with code, syntax, and concepts. Keep responses concise and terminal-friendly. You are a guide, not an agent — the user writes the code, you help them understand.',

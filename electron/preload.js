@@ -47,6 +47,23 @@ contextBridge.exposeInMainWorld('terminal', {
       }
     };
   },
+  onDownloadProgress: (cb) => {
+    if (typeof cb !== 'function') {
+      console.error('[preload] onDownloadProgress: callback is not a function');
+      return () => {};
+    }
+    const handler = (_event, progress) => {
+      try { cb(progress); } catch (err) {
+        console.error('[preload] onDownloadProgress callback error:', err.message);
+      }
+    };
+    ipcRenderer.on('model:downloadProgress', handler);
+    return () => {
+      try { ipcRenderer.removeListener('model:downloadProgress', handler); } catch (err) {
+        console.error('[preload] onDownloadProgress cleanup error:', err.message);
+      }
+    };
+  },
 
   // Chat
   send: (text, options) => {

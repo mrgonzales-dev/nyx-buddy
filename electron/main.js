@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const llm = require('./llmEngineV2');
 const docs = require('./docs');
+const modelDownload = require('./modelDownload');
 
 const isDev = process.env.ELECTRON_DEV === '1';
 
@@ -51,9 +52,26 @@ app.whenReady().then(() => {
     else win.maximize();
   });
 
-  // Chat: load model
+  // Chat: load model (downloads first if needed)
   ipcMain.handle('model:load', async () => {
     try {
+      // Check if model needs downloading
+      if (!modelDownload.isModelDownloaded()) {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('model:status', 'downloading model...');
+        }
+
+        await modelDownload.downloadModel((progress) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('model:downloadProgress', progress);
+          }
+        });
+
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('model:status', 'download complete');
+        }
+      }
+
       await llm.ensureModel((status) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('model:status', status);

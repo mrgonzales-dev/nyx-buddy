@@ -155,7 +155,6 @@
         :disabled="isBusy"
         :placeholder="inputPlaceholder"
         @keydown.enter="sendMessage"
-        @keydown.esc="cancelGeneration"
         @paste="onPaste"
         spellcheck="false"
         autocomplete="off"
@@ -200,11 +199,19 @@
       <div v-if="modelLoading || modelJustLoaded" class="loading-overlay" @click.self="dismissLoadedModal">
         <div class="loading-modal">
           <template v-if="modelLoading">
-            <div class="loading-spinner"></div>
-            <div class="loading-modal-title">loading model</div>
-            <div class="loading-modal-status">{{ loadStatus || 'initializing…' }}</div>
+            <div class="loading-spinner" v-if="!downloadProgress"></div>
+            <div class="loading-modal-title">{{ downloadProgress ? "fetching nyx's soul" : 'loading model' }}</div>
+            <div class="loading-modal-status">{{ downloadProgress ? 'downloading model' : (loadStatus || 'initializing…') }}</div>
             <div class="loading-modal-progress">
-              <div class="loading-modal-progress-fill" :class="{ indeterminate: true }"></div>
+              <div
+                v-if="downloadProgress"
+                class="loading-modal-progress-fill"
+                :style="{ width: downloadProgress.percent + '%' }"
+              ></div>
+              <div v-else class="loading-modal-progress-fill" :class="{ indeterminate: true }"></div>
+            </div>
+            <div v-if="downloadProgress" class="loading-modal-download-info">
+              {{ downloadProgress.percent }}% · {{ formatBytes(downloadProgress.downloadedBytes) }} / {{ formatBytes(downloadProgress.totalBytes) }}
             </div>
           </template>
           <template v-else-if="modelJustLoaded">
@@ -253,6 +260,7 @@ const tempValue = ref('0.4');
 const tempEditing = ref(false);
 const tempSliderEl = ref(null);
 const modelJustLoaded = ref(false);
+const downloadProgress = ref(null);
 
 // ---- Computed ----
 const usagePercent = computed(() => {
@@ -308,6 +316,14 @@ function scrollToBottom() {
   });
 }
 
+// ---- Helpers ----
+function formatBytes(bytes) {
+  if (typeof bytes !== 'number' || isNaN(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
+}
+
 // ---- Model ----
 async function loadModel() {
   if (modelLoading.value || modelLoaded.value) return;
@@ -322,9 +338,14 @@ async function loadModel() {
   loadStatus.value = 'starting…';
 
   let unsub = null;
+  let unsubDownload = null;
   try {
     unsub = window.terminal?.onModelStatus?.((status) => {
       if (status) loadStatus.value = status;
+    });
+
+    unsubDownload = window.terminal?.onDownloadProgress?.((progress) => {
+      downloadProgress.value = progress;
     });
 
     const result = await window.terminal.loadModel();
@@ -343,7 +364,9 @@ async function loadModel() {
   } finally {
     modelLoading.value = false;
     loadStatus.value = '';
+    downloadProgress.value = null;
     if (unsub) try { unsub(); } catch (_) {}
+    if (unsubDownload) try { unsubDownload(); } catch (_) {}
     checkCanCompact();
   }
 }
@@ -685,6 +708,14 @@ function onPaste(e) {
   });
 }
 
+// ---- Global keydown (Escape works even when input is disabled) ----
+function onGlobalKeydown(e) {
+  if (e.key === 'Escape' && isBusy.value) {
+    e.preventDefault();
+    cancelGeneration();
+  }
+}
+
 // ---- Lifecycle ----
 onMounted(() => {
   // Auto-load model on startup
@@ -697,6 +728,7 @@ onMounted(() => {
     try { inputEl.value?.focus(); } catch (_) {}
   });
   document.addEventListener('mousedown', onTempOutsideClick);
+  window.addEventListener('keydown', onGlobalKeydown);
 });
 
 onUnmounted(() => {
@@ -706,6 +738,7 @@ onUnmounted(() => {
     document.body.style.userSelect = '';
   } catch (_) {}
   document.removeEventListener('mousedown', onTempOutsideClick);
+  window.removeEventListener('keydown', onGlobalKeydown);
 });
 </script>
 
@@ -1347,6 +1380,12 @@ onUnmounted(() => {
 }
 .loading-modal-progress-fill.indeterminate {
   animation: indeterminate 1.4s ease-in-out infinite;
+}
+.loading-modal-download-info {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 8px;
 }
 @keyframes indeterminate {
   0% { margin-left: -30%; }
