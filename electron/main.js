@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const llm = require('./llmEngineV1');
+const llm = require('./llmEngineV2');
 const docs = require('./docs');
 
 const isDev = process.env.ELECTRON_DEV === '1';

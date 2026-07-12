@@ -1,9 +1,9 @@
 /**
- * Backend stress test for llmEngineV1.
+ * Backend stress test for llmEngineV2.
  * Bypasses Electron entirely — talks to the engine directly.
  * Usage: node test/engine-test.js
  */
-const llm = require('../electron/llmEngineV1');
+const llm = require('../electron/llmEngineV2');
 
 const TEST_MESSAGES = [
   { input: 'Hello! Who are you?', expect: 'string' },
