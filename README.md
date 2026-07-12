@@ -47,7 +47,6 @@ npm run electron:dev
 ```bash
 npm run dist:win     # Windows installer
 npm run dist:linux   # Linux AppImage
-npm run dist:mac     # macOS dmg
 ```
 
 ## Tech stack
