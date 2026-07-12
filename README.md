@@ -1,8 +1,10 @@
-# nyx-dev
+# Nyx - Your Local AI Dev Companion
 
 ![nyx-dev](public/image_sample.png)
 
-Your local AI dev companion. A terminal-style desktop app that runs a local LLM (Qwen2.5-Coder 1.5B) entirely on your machine — no API keys, no cloud, no telemetry.
+Your local AI dev companion. A terminal-style desktop app that runs a local LLM (Qwen2.5-Coder 1.5B) entirely on your machine, no API keys, no cloud, no telemetry.
+
+I built this as a test to see if local AI models can now be accessible to developers with low-tier hardware, and to see how far small local models have come. I hate the idea of only using AI handled by big tech, I want to test how we can make our own and make it usable.
 
 ## Features
 
