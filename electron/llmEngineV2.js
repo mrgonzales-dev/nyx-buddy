@@ -45,8 +45,44 @@ let sequence = null;     // generation sequence
 let chatWrapper = null;  // Jinja chat template wrapper
 let loadingPromise = null;       // prevents double-loading
 let abortController = null;       // used to stop generation
+let userNickname = null;          // set before ensureModel() so it's in the system prompt
 
 // ---- Functions (stubs — to be implemented) ----
+
+/**
+ * Sets the user's nickname. Must be called before ensureModel()
+ * so the name is included in the system prompt.
+ * Only lowercase letters, numbers, and underscores allowed.
+ * Throws if the model is already loaded — the system prompt is baked in at session creation.
+ */
+function setNickname(name) {
+  if (session !== null) {
+    throw new Error('Cannot set nickname after model is loaded. Restart the app to change your nickname.');
+  }
+  if (!name || typeof name !== 'string') {
+    throw new Error('Nickname is required');
+  }
+  const cleaned = name.trim().toLowerCase();
+  if (!/^[a-z0-9_]+$/.test(cleaned)) {
+    throw new Error('Nickname can only contain lowercase letters, numbers, and underscores');
+  }
+  userNickname = cleaned;
+}
+
+/**
+ * Returns the user's nickname (or null if not set).
+ */
+function getNickname() {
+  return userNickname;
+}
+
+/**
+ * Builds the system prompt with the user's nickname.
+ */
+function buildSystemPrompt() {
+  if (!userNickname) return SYSTEM_PROMPT;
+  return `${SYSTEM_PROMPT}\n\nThe user's name is ${userNickname}. Address them by their name when appropriate.`;
+}
 
 /**
  * Returns the model metadata (name, quant, size).
@@ -150,7 +186,7 @@ async function ensureModel(onStatus) {
       session = new LlamaChatSession({
         contextSequence: sequence,
         chatWrapper,
-        systemPrompt: SYSTEM_PROMPT,
+        systemPrompt: buildSystemPrompt(),
         contextShift: { size: 512 },
       });
       if (!session) throw new Error('Chat session is null after creation');
@@ -417,4 +453,6 @@ module.exports = {
   chat,
   stop,
   compact,
+  setNickname,
+  getNickname,
 };

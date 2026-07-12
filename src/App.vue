@@ -145,15 +145,15 @@
     <!-- Input prompt -->
     <div class="input-bar">
       <span class="input-prompt">
-        <span class="prompt-user">mrg@nyx-dev</span><span class="sep">:</span><span class="prompt-path">~</span><span class="sep">$</span>
+        <span class="prompt-user">{{ nickname || '...' }}@nyx-dev</span><span class="sep">:</span><span class="prompt-path">~</span><span class="sep">$</span>
       </span>
       <span v-if="hasDocsContext" class="docs-indicator" @click="clearDocsContext" title="click to clear docs context">[docs]</span>
       <input
         ref="inputEl"
         v-model="inputText"
         class="input-field"
-        :disabled="isBusy"
-        :placeholder="inputPlaceholder"
+        :disabled="isBusy || !nickname"
+        :placeholder="nickname ? inputPlaceholder : 'set your nickname first...'"
         @keydown.enter="sendMessage"
         @paste="onPaste"
         spellcheck="false"
@@ -164,7 +164,7 @@
         v-if="!isBusy"
         class="send-btn"
         @click="sendMessage"
-        :disabled="!inputText.trim()"
+        :disabled="!inputText.trim() || !nickname"
       >send</button>
       <button
         v-else
@@ -223,6 +223,29 @@
         </div>
       </div>
     </transition>
+
+    <!-- Nickname modal -->
+    <transition name="modal-fade">
+      <div v-if="showNicknameModal" class="loading-overlay">
+        <div class="loading-modal">
+          <div class="loading-modal-title">what should I call you?</div>
+          <div class="loading-modal-status">lowercase letters, numbers, and _ only</div>
+          <input
+            class="nickname-input"
+            v-model="nicknameInput"
+            placeholder="your_name..."
+            maxlength="20"
+            spellcheck="false"
+            @keydown.enter="saveNickname"
+            @input="nicknameError = ''"
+          />
+          <div v-if="nicknameError" class="nickname-error">{{ nicknameError }}</div>
+          <div class="nickname-modal-btns">
+            <button class="loading-modal-btn" @click="saveNickname" :disabled="!nicknameInput.trim()">save</button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -262,6 +285,10 @@ const tempEditing = ref(false);
 const tempSliderEl = ref(null);
 const modelJustLoaded = ref(false);
 const downloadProgress = ref(null);
+const nickname = ref(localStorage.getItem('nyx-nickname') || '');
+const showNicknameModal = ref(false);
+const nicknameInput = ref('');
+const nicknameError = ref('');
 
 // ---- Computed ----
 const usagePercent = computed(() => {
@@ -374,6 +401,35 @@ async function loadModel() {
 
 function dismissLoadedModal() {
   modelJustLoaded.value = false;
+}
+
+async function saveNickname() {
+  const name = nicknameInput.value.trim().toLowerCase();
+  if (!name) {
+    nicknameError.value = 'nickname is required';
+    return;
+  }
+  if (!/^[a-z0-9_]+$/.test(name)) {
+    nicknameError.value = 'only lowercase letters, numbers, and _';
+    return;
+  }
+  // Send to engine so it's in the system prompt
+  if (window.terminal?.setNickname) {
+    const result = await window.terminal.setNickname(name);
+    if (!result.ok) {
+      nicknameError.value = result.error;
+      return;
+    }
+  }
+  nickname.value = name;
+  localStorage.setItem('nyx-nickname', name);
+  showNicknameModal.value = false;
+  // Now load the model
+  try {
+    await loadModel();
+  } catch (err) {
+    error.value = `Failed to auto-load model: ${err.message}`;
+  }
 }
 
 // ---- Chat ----
@@ -719,11 +775,27 @@ function onGlobalKeydown(e) {
 
 // ---- Lifecycle ----
 onMounted(() => {
-  // Auto-load model on startup
-  try {
-    loadModel();
-  } catch (err) {
-    error.value = `Failed to auto-load model: ${err.message}`;
+  // If no nickname set, force nickname modal before anything else
+  if (!localStorage.getItem('nyx-nickname')) {
+    showNicknameModal.value = true;
+    nicknameError.value = '';
+    nextTick(() => {
+      const el = document.querySelector('.nickname-input');
+      if (el) el.focus();
+    });
+  } else {
+    // Nickname already set — restore it and send to engine
+    const savedName = localStorage.getItem('nyx-nickname');
+    nickname.value = savedName;
+    if (window.terminal?.setNickname) {
+      window.terminal.setNickname(savedName);
+    }
+    // Auto-load model
+    try {
+      loadModel();
+    } catch (err) {
+      error.value = `Failed to auto-load model: ${err.message}`;
+    }
   }
   nextTick(() => {
     try { inputEl.value?.focus(); } catch (_) {}
@@ -1427,5 +1499,35 @@ onUnmounted(() => {
 .modal-fade-leave-to .loading-modal {
   transform: scale(0.95);
   opacity: 0;
+}
+
+/* ---- Nickname modal ---- */
+.nickname-input {
+  width: 100%;
+  margin: 12px 0;
+  padding: 8px 12px;
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  outline: none;
+}
+.nickname-input:focus {
+  border-color: var(--cyan);
+}
+.nickname-input::placeholder {
+  color: var(--text-dim);
+}
+.nickname-modal-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.nickname-error {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #ff6b6b;
+  margin-bottom: 8px;
 }
 </style>

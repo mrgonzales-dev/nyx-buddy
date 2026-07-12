@@ -86,6 +86,16 @@ app.whenReady().then(() => {
     }
   });
 
+  // Chat: set nickname (must be called before model:load)
+  ipcMain.handle('user:setNickname', async (_event, name) => {
+    try {
+      llm.setNickname(name);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   // Chat: get model status
   ipcMain.handle('model:status', async () => {
     try {

@@ -26,6 +26,10 @@ function log(tag, msg) {
 async function run() {
   console.log('=== dev_labs engine stress test ===\n');
 
+  // 0. Set nickname before loading model
+  llm.setNickname('test_user');
+  log('TEST', 'nickname set: test_user');
+
   // 1. Load model with status callbacks
   log('TEST', 'loading model...');
   const loadStart = Date.now();
